@@ -6,6 +6,12 @@
 #include "Camera/CameraComponent.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Camera/CameraComponent.h"
+#include "Runtime/Core/Public/Math/UnrealMathUtility.h"
+#include "Runtime/Engine/Classes/Engine/World.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Laser.h"
+#include <math.h>
 #include "Ship.generated.h"
 
 UCLASS()
@@ -57,7 +63,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Camera")
 	float XOffset = 150.0f;
 	UPROPERTY(EditAnywhere, Category = "Camera")
+	float CameraBoundHeight = 200.0f;
+	UPROPERTY(EditAnywhere, Category = "Camera")
+	float CameraBoundWidth = 200.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
+	float ProjectileVelocity;
+	UPROPERTY(EditAnywhere, Category = "Camera")
 	FVector StartLocation = FVector(GetActorLocation().X, GetActorLocation().Y, GetActorLocation().X);
+	/** Offset From the Ship */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
+	FVector MuzzleOffset;
+	/** Projectile class to spawn */
+	UPROPERTY(EditDefaultsOnly, Category = Projectile)
+	TSubclassOf<class ALaser> LaserClass;
+
+	//handles firing
+	UFUNCTION()
+	void OnFire();
 
 	float currentYInput;
 	float currentZInput;

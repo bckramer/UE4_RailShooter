@@ -2,9 +2,6 @@
 
 #include "Ship.h"
 #include "LSD_PROTO_01.h"
-#include "Camera/CameraComponent.h"
-#include "Runtime/Core/Public/Math/UnrealMathUtility.h"
-#include "GameFramework/SpringArmComponent.h"
 #include <iostream>
 
 
@@ -25,7 +22,7 @@ AShip::AShip()
 
 	OurCameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	OurCameraSpringArm->SetupAttachment(RootComponent);
-	OurCameraSpringArm->TargetArmLength = 400.f;
+	OurCameraSpringArm->TargetArmLength = 400.0f;
 	OurCameraSpringArm->bEnableCameraLag = true;
 	OurCameraSpringArm->CameraLagSpeed = 3.0f;
 
@@ -50,23 +47,35 @@ void AShip::Tick(float DeltaTime)
 	// Handle movement based on our "MoveX" and "MoveY" axes
 	{
 		CurrentVelocity.X = forwardVelocity;
-		const FVector LocalMove = FVector(forwardVelocity * DeltaTime, 0.f, 0.f);
-		AddActorLocalOffset(LocalMove, true);
+		if (fieldMode) {
+			const FVector fieldLocalMove = FVector(forwardVelocity * DeltaTime, 0.0f, 0.0f);
+			AddActorLocalOffset(fieldLocalMove, true);
+		}
+		else {
+			FVector LocalMove = FVector(GetActorLocation().X + forwardVelocity * DeltaTime, GetActorLocation().Y + (currentYInput * translateSpeed), GetActorLocation().Z + (currentZInput * translateSpeed));
+			if (LocalMove.Y > OurCameraSpringArm->GetComponentLocation().Y + CameraBoundHeight || LocalMove.Y < OurCameraSpringArm->GetComponentLocation().Y - CameraBoundHeight) {
+				LocalMove.Y = GetActorLocation().Y;
+			}
+			if (LocalMove.Z > OurCameraSpringArm->GetComponentLocation().Z + CameraBoundHeight || LocalMove.Z < OurCameraSpringArm->GetComponentLocation().Z - CameraBoundHeight) {
+				LocalMove.Z = GetActorLocation().Z;
+			}
+			SetActorLocation(LocalMove, true, false, ETeleportType::None);
+		}
 		if (!fieldMode) {
+			//if (GEngine) {
+			//	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Tan Result %f"), GetActorLocation().Z));
+			//}
 			OurCameraSpringArm->bInheritYaw = 0;
 			OurCameraSpringArm->bInheritPitch = 0;
 			OurCameraSpringArm->bInheritRoll = 0;
 			OurCameraSpringArm->SetWorldLocation(FVector(GetActorLocation().X - XOffset, StartLocation.Y, StartLocation.Z), false, 0);
+
 		}
 		else {
 			bMaxRotation = false;
-			//OurCameraSpringArm->bInheritYaw = 1;
 			OurCameraSpringArm->bAbsoluteRotation = 0;
-			//OurCameraSpringArm->SetWorldLocation(FVector(GetActorLocation().X - XOffset, GetActorLocation().Y, GetActorLocation().Z), false, 0);
 		}
-		//SetActorLocation(NewLocation);
 		if (currentYInput == 0 && currentZInput == 0) {
-			//AddActorLocalRotation(DeltaRotation);
 			SetActorRotation(FMath::RInterpTo(GetActorRotation(), FRotator(CurrentRotation.Pitch, CurrentRotation.Yaw, CurrentRotation.Roll), DeltaTime, returnToSpeed));
 		} else {
 			SetActorRotation(FMath::RInterpTo(GetActorRotation(), FRotator(CurrentRotation.Pitch, CurrentRotation.Yaw, CurrentRotation.Roll), DeltaTime, rotationSpeed));
@@ -86,6 +95,9 @@ void AShip::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	// Respond every frame to the values of our two movement axes, "MoveX" and "MoveY".
 	InputComponent->BindAxis("MoveZ", this, &AShip::Move_ZAxis);
 	InputComponent->BindAxis("MoveY", this, &AShip::Move_YAxis);
+
+	//Configure Fire Button
+	InputComponent->BindAction("Fire", IE_Pressed, this, &AShip::OnFire);
 
 }
 
@@ -135,6 +147,39 @@ void AShip::Move_YAxis(float AxisValue)
 	}
 	if (AxisValue == 0.0f && !fieldMode) {
 		CurrentRotation.Yaw = 0.0f;
+	}
+}
+
+void AShip::OnFire()
+{
+	// try and fire a projectile
+	if (LaserClass != NULL)
+	{
+		// Get the camera transform
+		FVector CameraLoc;
+		FRotator CameraRot;
+		GetActorEyesViewPoint(CameraLoc, CameraRot);
+		// MuzzleOffset is in camera space, so transform it to world space before offsetting from the camera to find the final muzzle position
+		//FVector const MuzzleLocation = CameraLoc + FTransform(CameraRot).TransformVector(MuzzleOffset);
+		FVector const MuzzleLocation = GetActorLocation();
+		FRotator MuzzleRotation = GetActorRotation();        
+		UWorld* const World = GetWorld();
+		if (World)
+		{
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = this;
+			SpawnParams.Instigator = Instigator;
+			// spawn the projectile at the muzzle
+			ALaser* const Projectile = World->SpawnActor<ALaser>(LaserClass, MuzzleLocation, MuzzleRotation, SpawnParams);
+			Projectile->ProjectileMovement->InitialSpeed = ProjectileVelocity;
+			Projectile->ProjectileMovement->MaxSpeed = ProjectileVelocity;
+			if (Projectile)
+			{
+				// find launch direction
+				FVector const LaunchDir = MuzzleRotation.Vector();
+				Projectile->InitVelocity(LaunchDir);
+			}
+		}
 	}
 }
 
