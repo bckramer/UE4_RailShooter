@@ -14,11 +14,16 @@ AShip::AShip()
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 
 	// Create a dummy root component we can attach things to.
-	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	// Create a camera and a visible object
 	OurVisibleComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("OurVisibleComponent"));
+	Muzzle = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Muzzle"));
+	BoundaryAnchor = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoundaryAnchor"));
 	ReticleClose = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ReticleClose"));
 	ReticleFar = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ReticleFar"));
+	CollisionComp = CreateDefaultSubobject<UBoxComponent>(TEXT("BoxComp"));
+	RootComponent = CollisionComp;
+	ParticleEffectDamage = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("ParticleEffectDamage"));
+	ParticleEffectFire = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("ParticleEffectFire"));
 
 	OurCameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	OurCameraSpringArm->SetupAttachment(RootComponent);
@@ -29,6 +34,10 @@ AShip::AShip()
 	OurCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
 	OurCamera->SetupAttachment(OurCameraSpringArm, USpringArmComponent::SocketName);
 	OurVisibleComponent->SetupAttachment(RootComponent);
+	OurVisibleComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+	CollisionComp->SetupAttachment(RootComponent);
+	ParticleEffectDamage->SetupAttachment(RootComponent);
+	ParticleEffectFire->SetupAttachment(RootComponent);
 
 }
 
@@ -36,7 +45,16 @@ AShip::AShip()
 void AShip::BeginPlay()
 {
 	Super::BeginPlay();
+	CollisionComp->OnComponentHit.RemoveDynamic(this, &AShip::OnHit);
+	CollisionComp->OnComponentHit.AddDynamic(this, &AShip::OnHit);
 	PrevRotation = FRotator(270.0f, 0.0f, 0.0f);
+	BoundaryAnchor->SetWorldLocation(FVector(GetActorLocation().X, GetActorLocation().Y, GetActorLocation().Z), false, 0);
+	OurVisibleComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+	OurVisibleComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
+	OurCameraSpringArm->bInheritYaw = 0;
+	OurCameraSpringArm->bInheritPitch = 0;
+	OurCameraSpringArm->bInheritRoll = 0;
+
 
 }
 
@@ -46,30 +64,27 @@ void AShip::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	// Handle movement based on our "MoveX" and "MoveY" axes
 	{
+		OurVisibleComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
 		CurrentVelocity.X = forwardVelocity;
 		if (fieldMode) {
 			const FVector fieldLocalMove = FVector(forwardVelocity * DeltaTime, 0.0f, 0.0f);
 			AddActorLocalOffset(fieldLocalMove, true);
-		}
-		else {
+		} else {
 			FVector LocalMove = FVector(GetActorLocation().X + forwardVelocity * DeltaTime, GetActorLocation().Y + (currentYInput * translateSpeed), GetActorLocation().Z + (currentZInput * translateSpeed));
-			if (LocalMove.Y > OurCameraSpringArm->GetComponentLocation().Y + CameraBoundHeight || LocalMove.Y < OurCameraSpringArm->GetComponentLocation().Y - CameraBoundHeight) {
+			if (LocalMove.Y > BoundaryAnchor->GetComponentLocation().Y + BoundaryHeight || LocalMove.Y < BoundaryAnchor->GetComponentLocation().Y - BoundaryHeight) {
 				LocalMove.Y = GetActorLocation().Y;
 			}
-			if (LocalMove.Z > OurCameraSpringArm->GetComponentLocation().Z + CameraBoundHeight || LocalMove.Z < OurCameraSpringArm->GetComponentLocation().Z - CameraBoundHeight) {
+			if (LocalMove.Z > BoundaryAnchor->GetComponentLocation().Z + BoundaryHeight || LocalMove.Z < BoundaryAnchor->GetComponentLocation().Z - BoundaryHeight) {
 				LocalMove.Z = GetActorLocation().Z;
 			}
 			SetActorLocation(LocalMove, true, false, ETeleportType::None);
+			BoundaryAnchor->SetWorldLocation(FVector(GetActorLocation().X, BoundaryAnchor->GetComponentLocation().Y, BoundaryAnchor->GetComponentLocation().Z), false, 0);
 		}
 		if (!fieldMode) {
 			//if (GEngine) {
 			//	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Tan Result %f"), GetActorLocation().Z));
 			//}
-			OurCameraSpringArm->bInheritYaw = 0;
-			OurCameraSpringArm->bInheritPitch = 0;
-			OurCameraSpringArm->bInheritRoll = 0;
-			OurCameraSpringArm->SetWorldLocation(FVector(GetActorLocation().X - XOffset, StartLocation.Y, StartLocation.Z), false, 0);
-
+			SetCameraPosition();
 		}
 		else {
 			bMaxRotation = false;
@@ -160,8 +175,8 @@ void AShip::OnFire()
 		FRotator CameraRot;
 		GetActorEyesViewPoint(CameraLoc, CameraRot);
 		// MuzzleOffset is in camera space, so transform it to world space before offsetting from the camera to find the final muzzle position
-		//FVector const MuzzleLocation = CameraLoc + FTransform(CameraRot).TransformVector(MuzzleOffset);
-		FVector const MuzzleLocation = GetActorLocation();
+		// FVector const MuzzleLocation = CameraLoc + FTransform(CameraRot).TransformVector(MuzzleOffset);
+		FVector const MuzzleLocation = Muzzle->GetComponentLocation();
 		FRotator MuzzleRotation = GetActorRotation();        
 		UWorld* const World = GetWorld();
 		if (World)
@@ -177,8 +192,43 @@ void AShip::OnFire()
 			{
 				// find launch direction
 				FVector const LaunchDir = MuzzleRotation.Vector();
+				ParticleEffectFire->Activate();
 				Projectile->InitVelocity(LaunchDir);
 			}
+		}
+	}
+}
+
+void AShip::SetCameraPosition() 
+{
+	FVector CameraMove = FVector(GetActorLocation().X - XOffset, GetActorLocation().Y, GetActorLocation().Z);
+	if (CameraMove.Y > (BoundaryAnchor->GetComponentLocation().Y + BoundaryHeight) - CameraBoundaryWidth) {
+		CameraMove.Y = (BoundaryAnchor->GetComponentLocation().Y + BoundaryHeight) - CameraBoundaryWidth;
+	}
+	else if (CameraMove.Y < (BoundaryAnchor->GetComponentLocation().Y - BoundaryHeight) + CameraBoundaryWidth) {
+		CameraMove.Y = (BoundaryAnchor->GetComponentLocation().Y - BoundaryHeight) + CameraBoundaryWidth;
+	}
+	if (CameraMove.Z > (BoundaryAnchor->GetComponentLocation().Z + BoundaryHeight) - CameraBoundaryHeight) {
+		CameraMove.Z = (BoundaryAnchor->GetComponentLocation().Z + BoundaryHeight) - CameraBoundaryHeight;
+	}
+	else if (CameraMove.Z < (BoundaryAnchor->GetComponentLocation().Z - BoundaryHeight) + CameraBoundaryHeight) {
+		CameraMove.Z = (BoundaryAnchor->GetComponentLocation().Z - BoundaryHeight) + CameraBoundaryHeight;
+	}
+	OurCameraSpringArm->SetWorldLocation(FVector(CameraMove.X, CameraMove.Y, CameraMove.Z), false, 0);
+}
+
+void AShip::OnHit(UPrimitiveComponent * PrimitiveComponent1, AActor * Actor, UPrimitiveComponent * PrimitiveComponent2, FVector Vector, const FHitResult & HitResult) 
+{
+	//if (GEngine)
+	//	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Hit %f"), 1.0f));
+	if (Actor && (Actor != this) && PrimitiveComponent1)
+	{
+		//if (GEngine)
+		//	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Health %f"), Health));
+		ParticleEffectDamage->Activate();
+		Health = Health - 10.0f;
+		if (Health <= 0.0f) {
+			Destroy();
 		}
 	}
 }

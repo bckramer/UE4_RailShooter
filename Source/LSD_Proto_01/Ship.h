@@ -10,7 +10,10 @@
 #include "Runtime/Core/Public/Math/UnrealMathUtility.h"
 #include "Runtime/Engine/Classes/Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Runtime/Engine/Classes/Particles/ParticleSystemComponent.h"
+#include "Runtime/CoreUObject/Public/UObject/UObjectGlobals.h"
 #include "Laser.h"
+#include "Runtime/Engine/Classes/Components/BoxComponent.h"
 #include <math.h>
 #include "Ship.generated.h"
 
@@ -33,9 +36,18 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void SetCameraPosition();
 
 	UPROPERTY(EditAnywhere)
 	USceneComponent* OurVisibleComponent;
+	UPROPERTY(EditAnywhere)
+	USceneComponent* Muzzle;
+	UPROPERTY(EditAnywhere)
+	USceneComponent* ParticleEffectDamage;
+	UPROPERTY(EditAnywhere)
+	USceneComponent* ParticleEffectFire;
+	UPROPERTY(EditAnywhere)
+	USceneComponent* BoundaryAnchor;
 	UPROPERTY(EditAnywhere)
 	USceneComponent* ReticleClose;
 	UPROPERTY(EditAnywhere)
@@ -62,23 +74,28 @@ public:
 	bool bMaxRotation = true;
 	UPROPERTY(EditAnywhere, Category = "Camera")
 	float XOffset = 150.0f;
-	UPROPERTY(EditAnywhere, Category = "Camera")
-	float CameraBoundHeight = 200.0f;
-	UPROPERTY(EditAnywhere, Category = "Camera")
-	float CameraBoundWidth = 200.0f;
+	UPROPERTY(EditAnywhere, Category = "Boundary")
+	float BoundaryHeight;
+	UPROPERTY(EditAnywhere, Category = "Boundary")
+	float BoundaryWidth;
+	UPROPERTY(EditAnywhere, Category = "Boundary")
+	float CameraBoundaryHeight;
+	UPROPERTY(EditAnywhere, Category = "Boundary")
+	float CameraBoundaryWidth;
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Collision")
+	UBoxComponent* CollisionComp;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
 	float ProjectileVelocity;
-	UPROPERTY(EditAnywhere, Category = "Camera")
-	FVector StartLocation = FVector(GetActorLocation().X, GetActorLocation().Y, GetActorLocation().X);
-	/** Offset From the Ship */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
-	FVector MuzzleOffset;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
+	float Health;
 	/** Projectile class to spawn */
 	UPROPERTY(EditDefaultsOnly, Category = Projectile)
 	TSubclassOf<class ALaser> LaserClass;
 
-	//handles firing
-	UFUNCTION()
+
+	UFUNCTION(BlueprintCallable)
+	void OnHit(UPrimitiveComponent * PrimitiveComponent1, AActor * Actor, UPrimitiveComponent * PrimitiveComponent2, FVector Vector, const FHitResult & HitResult);
+	UFUNCTION(BlueprintCallable)
 	void OnFire();
 
 	float currentYInput;

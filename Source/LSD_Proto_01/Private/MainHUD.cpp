@@ -6,7 +6,9 @@
 AMainHUD::AMainHUD(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	static ConstructorHelpers::FObjectFinder<UTexture2D> CrosshairTexObj(TEXT("Texture2D'/Game/StarterContent/Crosshairs/crosshair042.crosshair042'"));
+	static ConstructorHelpers::FObjectFinder<UTexture2D> CrosshairTexObj1(TEXT("Texture2D'/Game/StarterContent/Crosshairs/crosshair086.crosshair086'"));
 	CrosshairTexture = CrosshairTexObj.Object;
+	CrosshairTexture1 = CrosshairTexObj1.Object;
 
 }
 
@@ -20,7 +22,7 @@ void AMainHUD::DrawHUD()
 	USceneComponent* ReticleClose = player->ReticleClose;
 	USceneComponent* ReticleFar = player->ReticleFar;
 
-	if (CrosshairTexture)
+	if (CrosshairTexture && CrosshairTexture1)
 	{
 		// Find the center of our canvas.
 		FVector2D Center(Canvas->ClipX * 0.5f, Canvas->ClipY * 0.5f);
@@ -35,14 +37,16 @@ void AMainHUD::DrawHUD()
 		// Offset by half of the texture's dimensions so that the center of the texture aligns with the center of the Canvas.
 
 		// Draw the crosshair at the centerpoint.
-		FVector2D CrossHairDrawPosition1(location1.X - (CrosshairTexture->GetSurfaceWidth() * 0.5), location1.Y - (CrosshairTexture->GetSurfaceHeight() * 0.5f));
+		FVector2D CrossHairDrawPosition1(location1.X - (CrosshairTexture1->GetSurfaceWidth() * 0.5), location1.Y - (CrosshairTexture1->GetSurfaceHeight() * 0.5f));
 		FCanvasTileItem TileItem(CrossHairDrawPosition, CrosshairTexture->Resource, FLinearColor::White);
 		TileItem.BlendMode = SE_BLEND_Translucent;
 		Canvas->DrawItem(TileItem);
 
-		FCanvasTileItem TileItem1(CrossHairDrawPosition1, CrosshairTexture->Resource, FLinearColor::White);
+		FCanvasTileItem TileItem1(CrossHairDrawPosition1, CrosshairTexture1->Resource, FLinearColor::White);
 		TileItem1.BlendMode = SE_BLEND_Translucent;
 		Canvas->DrawItem(TileItem1);
+
+		DrawRect(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f), 50.0f, 25.0f, (player->Health) * 4.0f, 20.0f);
 	}
 }
 

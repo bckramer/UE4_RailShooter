@@ -11,6 +11,7 @@
 #include "EngineGlobals.h"
 #include "Runtime/Engine/Classes/GameFramework/Actor.h"
 #include "Engine.h"
+#include "Ship.h"
 #include <math.h>
 #include "Runtime/Engine/Classes/Particles/ParticleSystemComponent.h"
 #include "BasicEnemy.generated.h"
@@ -38,10 +39,8 @@ public:
 	USceneComponent* ParticleEffect;
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "Projectile")
 	UBoxComponent* CollisionComp;
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Path)
-	//USplineComponent* SplinePath;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
-	FVector MuzzleOffset;
+	UPROPERTY(EditAnywhere)
+	USceneComponent* Muzzle;
 	UPROPERTY(EditDefaultsOnly, Category = Projectile)
 	TSubclassOf<class ALaser> LaserClass;
 	UPROPERTY(EditAnywhere, Category = Health)
